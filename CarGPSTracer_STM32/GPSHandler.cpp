@@ -1,11 +1,12 @@
 #include "GPSHandler.h"
 #include "BLYNK.h"
+
 #include <TinyGPS++.h>  
 
 #define GPS_DEBUG_ENABLE
 
 
-BLYNK BLYNK_GPS;
+//BLYNK BLYNK_GPS;
 TinyGPSPlus gps; 			//GPS Module Handler
 
 
@@ -54,15 +55,13 @@ int auto_update_timer = 0;
 // GeofencingUpdate variables
 bool prevAtHomeState = false;
 bool geofencing_check_enable = true;
-
+bool print_geofencing_data_enable = false;
+bool geofencing_send_email = false;
 
 void InitializeGPS();
 
-GPSHandler::GPSHandler(){} 
-
-GPSHandler::~GPSHandler(){}
-
-bool GPSHandler::Begin()
+  
+bool GPS_Begin()
 {
 	//Set GPS module baud rate
 	Serial3.begin(9600);
@@ -90,7 +89,7 @@ void InitializeGPS()
 	gps_data.travelDistance = 0.0;
 }
 
-void GPSHandler::UpdateGPSData()
+void GPS_UpdateGPSData()
 { 
 	gps_data.data_valid = gps.location.isUpdated();
 
@@ -105,7 +104,7 @@ void GPSHandler::UpdateGPSData()
 
 }
 
-void GPSHandler::smartDelay(unsigned long ms)
+void GPS_SmartDelay(unsigned long ms)
 {
   static unsigned long start = millis();
   do
@@ -116,14 +115,14 @@ void GPSHandler::smartDelay(unsigned long ms)
 }
 
 /*
-void GPSHandler::GPSHandler_Cyclic100ms()
+void GPSHandler_Cyclic100ms()
 {
 
 }
 */
 
 
-void GPSHandler::HandleLocationUpdate()
+void GPS_HandleLocationUpdate()
 {
 	int pointIndex = 1;
 
@@ -132,25 +131,25 @@ void GPSHandler::HandleLocationUpdate()
 		auto_update_timer = 0;
 		if( gps_data.data_valid == true || gps_data.prev_data_valid == true )
 		{
-			BLYNK_GPS.UpdateLocation(gps_data.latitude, gps_data.longitude, gps_data.speed, gps_data.satellites, false);
-			BLYNK_GPS.UpdateMapLocation(pointIndex, gps_data.latitude, gps_data.longitude);
+			UpdateLocation(gps_data.latitude, gps_data.longitude, gps_data.speed, gps_data.satellites, false);
+			UpdateMapLocation(pointIndex, gps_data.latitude, gps_data.longitude);
 
-			BLYNK_GPS.UpdateDataValidLed(gps_data.data_valid);
-			BLYNK_GPS.UpdatePrevDataValidLed(gps_data.prev_data_valid);
+			UpdateDataValidLed(gps_data.data_valid);
+			UpdatePrevDataValidLed(gps_data.prev_data_valid);
 
-			BLYNK_GPS.TerminalWriteLine("Data Valid");
-			BLYNK_GPS.TerminalFlush();
+			TerminalWriteLine("Data Valid");
+			TerminalFlush();
 		}
 		else
 		{
 			// reset GPS data
-			BLYNK_GPS.UpdateLocation(0.0, 0.0, 0.0, 0.0, true);
+			UpdateLocation(0.0, 0.0, 0.0, 0.0, true);
 
-			BLYNK_GPS.UpdateDataValidLed(false);
-			BLYNK_GPS.UpdatePrevDataValidLed(false);
+			UpdateDataValidLed(false);
+			UpdatePrevDataValidLed(false);
 
-			BLYNK_GPS.TerminalWriteLine("No Data");
-			BLYNK_GPS.TerminalFlush();
+			TerminalWriteLine("No Data");
+			TerminalFlush();
 		}
 		update_gps_data = false;
 	}
@@ -160,7 +159,7 @@ void GPSHandler::HandleLocationUpdate()
 	}
 }
 
-void GPSHandler::HandleStollenMode()
+void GPS_HandleStollenMode()
 {
 	char msgString[128];
 
@@ -170,8 +169,8 @@ void GPSHandler::HandleStollenMode()
 		{
 			// Send email with the vehicle location every stollen_mode_update_duration seconds
 			sprintf(msgString, "Loc: %.06f, %.06f ,Speed: %.06f, Time: %d/%d/%d-%d:%d:%d",
-			gps_data.latitude, gps_data.longitude, gps_data.speed, BLYNK_GPS.GetDay(), BLYNK_GPS.GetMonth(), BLYNK_GPS.GetYear(), BLYNK_GPS.GetHour(), BLYNK_GPS.GetMinute(), BLYNK_GPS.GetSecond());
-			BLYNK_GPS.SendEmail("Accent GPS Update", msgString);
+			gps_data.latitude, gps_data.longitude, gps_data.speed, GetDay(), GetMonth(), GetYear(), GetHour(), GetMinute(), GetSecond());
+			SendEmail("Accent GPS Update", msgString);
 #ifdef GPS_DEBUG_ENABLE
 			Serial.println("Email Sent");
 #endif
@@ -184,7 +183,7 @@ void GPSHandler::HandleStollenMode()
 	}
 }
 
-void GPSHandler::HandleGeofencingMode()
+void GPS_HandleGeofencingMode()
 {
   char msg[125];
   if( geofencing_check_enable == true )
@@ -197,10 +196,15 @@ void GPSHandler::HandleGeofencingMode()
 			float travelDistance = (float)TinyGPSPlus::distanceBetween( gps_data.latitude, gps_data.longitude, prev_lat, prev_lon ) ;
 			gps_data.travelDistance = travelDistance;
 
-	#ifdef GPS_DEBUG_ENABLE
-			sprintf(msg, "Dist = %.2f", travelDistance);
+      sprintf(msg, "MoveDist = %.2f, Speed = %.2f", travelDistance, gps_data.speed );
+	#ifdef GPS_DEBUG_ENABLE 
 			Serial.println(msg);
 	#endif
+      if( print_geofencing_data_enable == true )
+      {
+        TerminalWriteLine(msg);
+        TerminalFlush();
+      }
 
 			// Check if the travel distance is within the geofencing check raduis and if the vehicle speed is less than
 			// the standstill speed threshold
@@ -225,9 +229,14 @@ void GPSHandler::HandleGeofencingMode()
 				gps_data.is_vehicle_parked = true;
 				park_location_check_timer_2 = 0;
 
-				sprintf(msg, "Accent parked at: %d/%d/%d-%d:%d:%d", BLYNK_GPS.GetDay(), BLYNK_GPS.GetMonth(), BLYNK_GPS.GetYear(), BLYNK_GPS.GetHour(), BLYNK_GPS.GetMinute(), BLYNK_GPS.GetSecond());
-				BLYNK_GPS.TerminalWriteLine(msg);
-				BLYNK_GPS.TerminalFlush();
+				sprintf(msg, "Accent parked at: %.06f, %.06f , Time: %d/%d/%d-%d:%d:%d", gps_data.park_location_lat, gps_data.park_location_lon, GetDay(), GetMonth(), GetYear(), GetHour(), GetMinute(), GetSecond());
+				TerminalWriteLine(msg);
+				TerminalFlush();
+
+        if( geofencing_send_email == true )
+        {
+          SendEmail("Accent GPS Update", msg);
+        }
 
 	#ifdef GPS_DEBUG_ENABLE
 				Serial.println("Vehicle Parked");
@@ -250,15 +259,21 @@ void GPSHandler::HandleGeofencingMode()
 			float travelDistance = (float)TinyGPSPlus::distanceBetween( gps_data.latitude, gps_data.longitude, gps_data.park_location_lat, gps_data.park_location_lon ) ;
 			gps_data.travelDistance = travelDistance;
 
-	#ifdef GPS_DEBUG_ENABLE
-			sprintf(msg, "Dist2 = %.2f", travelDistance);
+      sprintf(msg, "ParkDist = %.2f, Speed = %.2f", travelDistance, gps_data.speed );
+	#ifdef GPS_DEBUG_ENABLE 
 			Serial.println(msg);
 	#endif
+
+      if( print_geofencing_data_enable == true )
+      {
+        TerminalWriteLine(msg);
+        TerminalFlush();
+      }
 
 			// Check if vehicle moved away from the home location or vehicle speed is more than standstill_speed_threshold
 			// A filtering is done to avoid error spikes in the GPS data by using timer home_location_check_timer_4 so
 			// distance or speed must be more than the specified threshold during this time in order to consider the vehicle moved
-			if( travelDistance > geofencing_check_radius || gps_data.speed >= standstill_speed_threshold )
+			if( travelDistance > geofencing_check_radius && gps_data.speed >= standstill_speed_threshold )
 			{
 				geofencing_check_timer_2++;
 			}
@@ -273,13 +288,18 @@ void GPSHandler::HandleGeofencingMode()
 				gps_data.is_vehicle_parked = false;
 				geofencing_check_timer_2 = 0;
 
-				sprintf(msg, "Accent Moved at: %d/%d/%d-%d:%d:%d", BLYNK_GPS.GetDay(), BLYNK_GPS.GetMonth(), BLYNK_GPS.GetYear(), BLYNK_GPS.GetHour(), BLYNK_GPS.GetMinute(), BLYNK_GPS.GetSecond());
-				BLYNK_GPS.TerminalWriteLine(msg);
-				BLYNK_GPS.TerminalFlush();
+				sprintf(msg, "Accent Moved at: %.06f, %.06f , Time: %d/%d/%d-%d:%d:%d", gps_data.latitude, gps_data.longitude, GetDay(), GetMonth(), GetYear(), GetHour(), GetMinute(), GetSecond());
+				TerminalWriteLine(msg);
+				TerminalFlush();
 
-				//String currentTime = String(BLYNK_GPS.GetDay()) + "/" + BLYNK_GPS.GetMonth() + "/" + BLYNK_GPS.GetYear() + "-" + String(BLYNK_GPS.GetHour()) + ":" + BLYNK_GPS.GetMinute() + ":" + BLYNK_GPS.GetSecond();
+				//String currentTime = String(GetDay()) + "/" + GetMonth() + "/" + GetYear() + "-" + String(GetHour()) + ":" + GetMinute() + ":" + GetSecond();
 				//Stringmessage = "Accent Moved at: " + currentTime  ;
-				BLYNK_GPS.SendNotification(msg) ;
+				SendNotification(msg) ;
+
+        if( geofencing_send_email == true )
+        {
+          SendEmail("Accent GPS Update", msg);
+        }
 
 	#ifdef GPS_DEBUG_ENABLE
 			  Serial.println("vehicle moved");
@@ -303,64 +323,72 @@ void GPSHandler::HandleGeofencingMode()
 
 
 /*
-strGPS_DATA GPSHandler::GetGPSData()
+strGPS_DATA GetGPSData()
 {
   return gps_data;
 }
 */
-void GPSHandler::SetParkTimer1Duration(int duration)
+void GPS_SetParkTimer1Duration(int duration)
 {
 	park_location_check_timer_1_Duration = duration;
 }
-void GPSHandler::SetParkTimer2Duration(int duration)
+void GPS_SetParkTimer2Duration(int duration)
 {
 	park_location_check_timer_2_Duration = duration;
 }
-void GPSHandler::SetGeofencingTimer1Duration(int duration)
+void GPS_SetGeofencingTimer1Duration(int duration)
 {
 	geofencing_check_timer_1_Duration = duration;
 }
-void GPSHandler::SetGeofencingTimer2Duration(int duration)
+void GPS_SetGeofencingTimer2Duration(int duration)
 {
 	geofencing_check_timer_2_Duration = duration;
 }
 
-void GPSHandler::SetGeofencingRadius(float radius)
+void GPS_SetGeofencingRadius(float radius)
 {
 	geofencing_check_radius = radius;
 } 
 
-void GPSHandler::SetUpdateGpsData(bool state)
+void GPS_SetUpdateGpsData(bool state)
 {
 	update_gps_data = state;
 }
 
-void GPSHandler::SetIsAutoUpdate(bool state)
+void GPS_SetIsAutoUpdate(bool state)
 {
 	is_auto_update = state;
 }
-void GPSHandler::ResetAutoUpdateTimer()
+void GPS_ResetAutoUpdateTimer()
 {
 	auto_update_timer = 0;
 }
-void GPSHandler::SetAutoUpdateTimerDuration(int duration)
+void GPS_SetAutoUpdateTimerDuration(int duration)
 {
 	auto_update_timer_duration = duration;
 }
 
-void GPSHandler::SetOperationMode(int mode)
+void GPS_SetOperationMode(int mode)
 {
 	operation_mode = mode;
 }
-void GPSHandler::ResetStollenModeUpdateTimer()
+void GPS_ResetStollenModeUpdateTimer()
 {
 	stollen_mode_update_timer = 0;
 }
-void GPSHandler::SetStollenModeUpdateDuration(int duration)
+void GPS_SetStollenModeUpdateDuration(int duration)
 {
 	stollen_mode_update_duration = duration;
 }
-void GPSHandler::SetGeofencingCheckEnable(bool state)
+void GPS_SetGeofencingCheckEnable(bool state)
 {
 	geofencing_check_enable = state;
+}
+void GPS_SetPrintGeofencingDataEnable(bool state)
+{
+  print_geofencing_data_enable = state;
+}
+void GPS_SetGeofencingSendEmail(bool state)
+{
+  geofencing_send_email = state;
 }

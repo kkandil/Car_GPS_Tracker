@@ -6,55 +6,47 @@
 
 
 
-// OBDII module
-OBDIIHandler OBDII(PA4, PB0);
-strOBD_Data obdData;
 
-
-GPSHandler GPS;
-
-//BLYNK BLYNK;
-BLYNK BLYNK;
- 
 void setup() {
+ 
+
 	//Set Serial monitor baud rate
 	Serial1.begin(115200);
 
 	// Init GPS module
-	GPS.Begin();
+	GPS_Begin();
 
 	//Set GSM module baud rate
 	Serial2.begin(9600);
 
 	// Init OBDII driver
-	OBDII.Begin();
+	OBDIIBegin(PA4, PB0);
 
 	delay(3000);
 
-	BLYNK.Begin();
-
+	BLYNKBegin(); 
+ 
 }
 
  
-void loop() {
-	BLYNK.Run();
-	GPS.smartDelay(0);
-	OBDII.HandleOBD();
+void loop() {  
+	BLYNKRun();
+	GPS_SmartDelay(0);
+	HandleOBD();  
 } //main loop ends
 
-void gpsUpdateTimer()
+void gpsUpdateTimer(void)
 {
 	char msgString[128];
 
-	GPS.UpdateGPSData();
+	GPS_UpdateGPSData();
 
-	GPS.HandleLocationUpdate();
+	GPS_HandleLocationUpdate();
 
-	GPS.HandleStollenMode();
+	GPS_HandleStollenMode();
 
-	GPS.HandleGeofencingMode();
+	GPS_HandleGeofencingMode();
 
-	OBDII.UpdatePIDData();
+	UpdatePIDData();
 
 }
-

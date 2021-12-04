@@ -5,7 +5,7 @@
 #include <SPI.h>
 
 
-BLYNK BLYNK_OBD;
+//BLYNK BLYNK_OBD;
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -59,20 +59,23 @@ bool is_obd_auto_update = false;
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //  Globale Functions
 
-OBDIIHandler::OBDIIHandler(int CS_pin, int INT_pin) { 
+/*
+:OBDIIHandler(int CS_pin, int INT_pin) { 
     CAN0 = new MCP_CAN(CS_pin);
     CAN0_INT = INT_pin;
   }
 
-OBDIIHandler::OBDIIHandler(void){}
+:OBDIIHandler(void){}
 
-OBDIIHandler::~OBDIIHandler(void) { }
+:~OBDIIHandler(void) { }
+*/
 
-
-bool OBDIIHandler::Begin()
+bool OBDIIBegin(int CS_pin, int INT_pin)
 {
   bool Status = false;
- 
+  CAN0 = new MCP_CAN(CS_pin);
+  CAN0_INT = INT_pin;
+    
   // Initialize MCP2515 running at 16MHz with a baudrate of 500kb/s and the masks and filters disabled.
   if(CAN0->begin(MCP_STDEXT, CAN_500KBPS, MCP_8MHZ) == CAN_OK) {
     Status = true;
@@ -122,56 +125,64 @@ bool OBDIIHandler::Begin()
 } 
 
 
-void OBDIIHandler::UpdatePIDData()
+void UpdatePIDData()
 {
 	char msgString[128] ;
 
 	if( update_obd_data == true && data_ready == true )
 	{
-		BLYNK_OBD.UpdatePIDData(OBD_Data.engine_col_temp, OBD_Data.engine_speed/10.0, OBD_Data.vehicle_speed, OBD_Data.throttle_pos, ((double)OBD_Data.runtime_since_engine_start)/10.0);
+		UpdatePIDData(OBD_Data.engine_col_temp, OBD_Data.engine_speed/10.0, OBD_Data.vehicle_speed, OBD_Data.throttle_pos, ((double)OBD_Data.runtime_since_engine_start)/10.0);
 
 		{
 			sprintf(msgString, "engine_col_temp[05]: %d",OBD_Data.engine_col_temp_val);
-			BLYNK_OBD.TerminalWriteLine(msgString);
+			TerminalWriteLine(msgString);
 			for(byte i = 0; i<8; i++){
 				sprintf(msgString, " 0x%.2X", OBD_Data.data_engine_col_temp[i]);
-				BLYNK_OBD.TerminalWrite(msgString);
+				TerminalWrite(msgString);
 			}
-			BLYNK_OBD.TerminalWriteLine("");
+			TerminalWriteLine("");
 
 			sprintf(msgString, "engine_speed[0C]: %d",OBD_Data.engine_speed_val);
-			BLYNK_OBD.TerminalWriteLine(msgString);
+			TerminalWriteLine(msgString);
 			for(byte i = 0; i<8; i++){
 				sprintf(msgString, " 0x%.2X", OBD_Data.data_engine_speed[i]);
-				BLYNK_OBD.TerminalWrite(msgString);
+				TerminalWrite(msgString);
 			}
-			BLYNK_OBD.TerminalWriteLine("");
+			TerminalWriteLine("");
 
 			sprintf(msgString, "Vehucle_Speed[0D]: %d",OBD_Data.vehicle_speed_val);
-			BLYNK_OBD.TerminalWriteLine(msgString);
+			TerminalWriteLine(msgString);
 			for(byte i = 0; i<8; i++){
 				sprintf(msgString, " 0x%.2X", OBD_Data.data_vehicle_speed[i]);
-				BLYNK_OBD.TerminalWrite(msgString);
+				TerminalWrite(msgString);
 			}
-			BLYNK_OBD.TerminalWriteLine("");
+			TerminalWriteLine("");
 
 			sprintf(msgString, "throttle_pos[11]: %d",OBD_Data.throttle_pos_val);
-			BLYNK_OBD.TerminalWriteLine(msgString);
+			TerminalWriteLine(msgString);
 			for(byte i = 0; i<8; i++){
 				sprintf(msgString, " 0x%.2X", OBD_Data.data_throttle_pos[i]);
-				BLYNK_OBD.TerminalWrite(msgString);
+				TerminalWrite(msgString);
 			}
-			BLYNK_OBD.TerminalWriteLine("");
+			TerminalWriteLine("");
 
 			sprintf(msgString, "throttle_pos[1F]: %d",OBD_Data.runtime_since_engine_start_val);
-			BLYNK_OBD.TerminalWriteLine(msgString);
+			TerminalWriteLine(msgString);
 			for(byte i = 0; i<8; i++){
 				sprintf(msgString, " 0x%.2X", OBD_Data.data_runtime_since_engine_start[i]);
-				BLYNK_OBD.TerminalWrite(msgString);
+				TerminalWrite(msgString);
 			}
-			BLYNK_OBD.TerminalWriteLine("");
-			BLYNK_OBD.TerminalWriteLine("-----------------------");
-			BLYNK_OBD.TerminalFlush();
+			TerminalWriteLine("");
+
+      sprintf(msgString, "odometer[A6]: %d",OBD_Data.odometer_val);
+      TerminalWriteLine(msgString);
+      for(byte i = 0; i<8; i++){
+        sprintf(msgString, " 0x%.2X", OBD_Data.data_odometer[i]);
+        TerminalWrite(msgString);
+      }
+      TerminalWriteLine("");
+			TerminalWriteLine("-----------------------");
+			TerminalFlush();
 		}
 		update_obd_data = false;
 		data_ready = false;
@@ -180,7 +191,7 @@ void OBDIIHandler::UpdatePIDData()
 	{
 		if( data_ready == true)
 		{
-			BLYNK_OBD.UpdatePIDData(OBD_Data.engine_col_temp, OBD_Data.engine_speed/10.0, OBD_Data.vehicle_speed, OBD_Data.throttle_pos, ((double)OBD_Data.runtime_since_engine_start)/10.0);
+			UpdatePIDData(OBD_Data.engine_col_temp, OBD_Data.engine_speed/10.0, OBD_Data.vehicle_speed, OBD_Data.throttle_pos, ((double)OBD_Data.runtime_since_engine_start)/10.0);
 
 			data_ready = false;
 			SendPIDRequest(WAIT_RESPONCE_ENGINE_COL_TEMP_05);
@@ -194,7 +205,7 @@ void OBDIIHandler::UpdatePIDData()
 }
 
 
-bool OBDIIHandler::ReadOBDData(unsigned long* rxID, byte* dlc, byte* rxBuf)
+bool ReadOBDData(unsigned long* rxID, byte* dlc, byte* rxBuf)
 {
   bool Status = false;
   
@@ -212,7 +223,7 @@ bool OBDIIHandler::ReadOBDData(unsigned long* rxID, byte* dlc, byte* rxBuf)
   }
   return Status;
 }
-bool OBDIIHandler::SendPIDRequest(enOBD_STATE PID)
+bool SendPIDRequest(enOBD_STATE PID)
 {
     byte txData[] = {0x02,0x01,0x00,0x55,0x55,0x55,0x55,0x55};
     txData[2] = (byte) PID;
@@ -232,6 +243,9 @@ bool OBDIIHandler::SendPIDRequest(enOBD_STATE PID)
       break;
       case WAIT_RESPONCE_RUNTIME_SINCE_ENGINE_START_1F:
         OBD_Data.runtime_since_engine_start_val = 0;
+      break;
+      case WAIT_RESPONCE_ODOMETER_A6:
+        OBD_Data.odometer_val = 0;
       break;
     }
     if(CAN0->sendMsgBuf(FUNCTIONAL_ID, 8, txData) == CAN_OK)
@@ -258,7 +272,7 @@ bool OBDIIHandler::SendPIDRequest(enOBD_STATE PID)
     return true;
 }
 
-bool OBDIIHandler::SendOBDRequest(int dlc, byte* data)
+bool SendOBDRequest(int dlc, byte* data)
 {
 
   if(CAN0->sendMsgBuf(FUNCTIONAL_ID, dlc, data) == CAN_OK)
@@ -291,7 +305,7 @@ bool OBDIIHandler::SendOBDRequest(int dlc, byte* data)
   return true;
 }
 
-void OBDIIHandler::HandleOBD()
+void HandleOBD()
 {
   unsigned long rxID;
   byte dlc;
@@ -651,6 +665,74 @@ void OBDIIHandler::HandleOBD()
             #ifdef OBDII_DEBUG
             Serial1.println("TimeOut wrong mesg received.....");
             #endif
+          } 
+          
+          SendPIDRequest(WAIT_RESPONCE_ODOMETER_A6);
+          current_state = WAIT_RESPONCE_ODOMETER_A6; 
+        }
+    break;
+
+
+    // PID: A6
+    case WAIT_RESPONCE_ODOMETER_A6:
+        Status = ReadOBDData(&rxID, &dlc, rxBuf);
+        if( Status == true )
+        {
+           if( rxBuf[0] == 0x06 && rxBuf[1] == 0x41 && rxBuf[2] == 0xA6 )
+           {
+              //OBD_Data.odometer = 256*(pow((int)rxBuf[3],24) + ((int)rxBuf[4]) ;
+              OBD_Data.odometer_val += 1;
+
+              for(byte i = 0; i<8; i++){
+                OBD_Data.data_odometer[i] = rxBuf[i];
+              }
+               
+               #ifdef OBDII_DEBUG
+               sprintf(msgString, "odometer: %d, Val: %d", OBD_Data.odometer, OBD_Data.odometer_val);
+               Serial1.println(msgString);
+               #endif
+               
+               //current_state = IDLE_STATE;  
+               //data_ready = true;
+           }
+           else
+           {
+              OBD_Data.odometer_val = -1;
+
+              for(byte i = 0; i<8; i++){
+                OBD_Data.data_odometer[i] = rxBuf[i];
+              }
+           } 
+
+          #ifdef OBDII_DEBUG
+             for(byte i = 0; i<dlc; i++){
+              sprintf(msgString, " 0x%.2X", rxBuf[i]);
+              Serial.print(msgString);
+            }
+            Serial1.println();
+            Serial1.println();
+           #endif
+           
+        }
+        else if( (millis() - obd_responce_timer) > obd_responce_timeout || OBD_Data.odometer_val == 2)
+        {
+          if( OBD_Data.odometer_val == 0)
+          {
+            OBD_Data.odometer_val = -2; 
+  
+            for(byte i = 0; i<8; i++){
+                OBD_Data.data_odometer[i] = 0x00;
+             }
+             
+            #ifdef OBDII_DEBUG
+            Serial1.println("TimeOut No mesg received.....");
+            #endif
+          }
+          if( OBD_Data.odometer_val == -1 )
+          { 
+            #ifdef OBDII_DEBUG
+            Serial1.println("TimeOut wrong mesg received.....");
+            #endif
           }
 
           Serial1.println("-----------------------------------------------");
@@ -658,6 +740,7 @@ void OBDIIHandler::HandleOBD()
           data_ready = true;
         }
     break;
+    
     case WAIT_SEGMENTED:
     break;
   }
@@ -665,31 +748,30 @@ void OBDIIHandler::HandleOBD()
 
 
 
-bool OBDIIHandler::SetDataReady(bool data_ready_state)
+bool SetDataReady(bool data_ready_state)
 {
    data_ready = data_ready_state;
 }
 
 
-strOBD_Data OBDIIHandler::GetPIDData()
+strOBD_Data GetPIDData()
 {
   return OBD_Data; 
 }
 
-void OBDIIHandler::SetUpdateObdData(bool state)
+void SetUpdateObdData(bool state)
 {
 	update_obd_data = state;
 }
-bool OBDIIHandler::GetUpdateObdData()
+bool GetUpdateObdData()
 {
 	return update_obd_data;
 }
-void OBDIIHandler::SetIsObdAutoUpdate(bool state)
+void SetIsObdAutoUpdate(bool state)
 {
 	is_obd_auto_update = state;
 }
-void OBDIIHandler::ResetObdAutoUpdateTimerCounter()
+void ResetObdAutoUpdateTimerCounter()
 {
 	obd_auto_update_timer_counter = 0;
 }
-

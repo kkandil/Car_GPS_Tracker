@@ -9,6 +9,7 @@ enum enOBD_STATE {
   WAIT_RESPONCE_VEHICLE_SPEED_0D = 0x0D,
   WAIT_RESPONCE_THROTTLE_POS_11 = 0x11,
   WAIT_RESPONCE_RUNTIME_SINCE_ENGINE_START_1F = 0x1F,
+  WAIT_RESPONCE_ODOMETER_A6 = 0xA6,
   WAIT_RESPONCE_GENERIC = 0xFF,
   WAIT_SEGMENTED,
 };
@@ -29,15 +30,40 @@ struct strOBD_Data{
   int runtime_since_engine_start;
   int runtime_since_engine_start_val;
   byte data_runtime_since_engine_start[8];
+  int odometer;
+  int odometer_val;
+  byte data_odometer[8];
 
   byte data[8];
   bool data_val;
 };
 
+bool OBDIIBegin(int CS_pin, int INT_pin);
 
-class OBDIIHandler;
+void UpdatePIDData();
 
+bool ReadOBDData(unsigned long* rxID, byte* dlc, byte* rxBuf);
 
+bool SendPIDRequest(enOBD_STATE PID);
+
+bool SendOBDRequest(int dlc, byte* data);
+
+void HandleOBD();
+
+//bool GetDataReady();
+
+bool SetDataReady(bool data_ready_state);
+
+strOBD_Data GetPIDData();
+
+void SetUpdateObdData(bool state);
+bool GetUpdateObdData();
+void SetIsObdAutoUpdate(bool state);
+void ResetObdAutoUpdateTimerCounter();
+
+//class OBDIIHandler;
+
+/*
 class OBDIIHandler {
 public:
   OBDIIHandler(int CS_pin, int INT_pin);
@@ -67,3 +93,4 @@ public:
   void SetIsObdAutoUpdate(bool state);
   void ResetObdAutoUpdateTimerCounter();
 };
+*/

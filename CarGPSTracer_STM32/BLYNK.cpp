@@ -3,8 +3,8 @@
 #include "GPSHandler.h"
 #include "OBDIIHandler.h"
 
-GPSHandler GPS_BLYNK;
-OBDIIHandler OBDII_BLYNK;
+//GPSHandler GPS_BLYNK;
+//OBDIIHandler OBDII_BLYNK;
 
 #define BLYNK_PRINT Serial1
 //#define ENABLE_DEBUG
@@ -44,29 +44,83 @@ WidgetRTC rtc;
 
 
 bool terminal_debug_enable = false;
+long reconnect_timer = 0;
+long reconnect_timer_duration = 20;
+int reset_counter = 0;
+bool is_reset_required = false;
 
+ 
+#define LIBMAPPLE_CORE //comment it for HAL based core
 
+#define IWDG_PR_DIV_4 0x0
+#define IWDG_PR_DIV_8 0x1
+#define IWDG_PR_DIV_16 0x2
+#define IWDG_PR_DIV_32 0x3
+#define IWDG_PR_DIV_64 0x4
+#define IWDG_PR_DIV_128 0x5
+#define IWDG_PR_DIV_256 0x6
 
-BLYNK::BLYNK(){}
+typedef enum iwdg_prescaler {
+  IWDG_PRE_4 = IWDG_PR_DIV_4,     //< Divide by 4  
+  IWDG_PRE_8 = IWDG_PR_DIV_8,     //< Divide by 8  
+  IWDG_PRE_16 = IWDG_PR_DIV_16,   //< Divide by 16  
+  IWDG_PRE_32 = IWDG_PR_DIV_32,   //< Divide by 32  
+  IWDG_PRE_64 = IWDG_PR_DIV_64,   //< Divide by 64  
+  IWDG_PRE_128 = IWDG_PR_DIV_128, //< Divide by 128  
+  IWDG_PRE_256 = IWDG_PR_DIV_256  //< Divide by 256 
+} iwdg_prescaler;
 
-BLYNK::~BLYNK(){}
+#if defined(LIBMAPPLE_CORE)
+typedef struct iwdg_reg_map {
+  volatile uint32_t KR;  //< Key register.  
+  volatile uint32_t PR;  //< Prescaler register.  
+  volatile uint32_t RLR; //< Reload register.  
+  volatile uint32_t SR;  //< Status register  
+} iwdg_reg_map;
 
-bool BLYNK::Begin()
+#define IWDG ((struct iwdg_reg_map *)0x40003000)
+#endif
+
+void iwdg_feed(void) { IWDG->KR = 0xAAAA; }
+
+//Time calculation (approximate): Tout=((4*2^prescaler)*reload)/40 (ms)
+void iwdg_init(iwdg_prescaler prescaler, uint16_t reload) {
+  IWDG->KR = 0x5555;
+  IWDG->PR = prescaler;
+  IWDG->RLR = reload;
+  IWDG->KR = 0xCCCC;
+  IWDG->KR = 0xAAAA;
+}
+ 
+
+bool BLYNKBegin()
 {
 	// Restart takes quite some time
 	// To skip it, call init() instead of restart()
 	modem.restart();
 	//modem.init();
 
-	Blynk.begin(auth, modem, apn, user, pass, "blynk-cloud.com", 8080);
+  modem.gprsConnect(apn, user, pass);
+  if (modem.isNetworkConnected())
+  {
+    Serial1.println("Network Connected");
+    Blynk.begin(auth, modem, apn, user, pass, "blynk-cloud.com", 8080);
+    setSyncInterval(10 * 60);
+  }
+  else
+  {
+    Serial1.println("Network Not Connected");
+  }
+ 
+
+	//Blynk.begin(auth, modem, apn, user, pass, "blynk-cloud.com", 8080);
 #ifdef ENABLE_DEBUG
 	Serial1.println("Blynk done...");
 #endif
 
-	setSyncInterval(10 * 60);
+	//setSyncInterval(10 * 60);
 
-	//EEPROM.begin(512);
-	//EEPROM.get(0, operation_mode);
+ 
 /*
 	if( operation_mode > MODE_STOLLEN || operation_mode < MODE_NORMAL )
 	{
@@ -74,28 +128,79 @@ bool BLYNK::Begin()
 	}
 */
 	timer.setInterval(100L, gpsUpdateTimer);
+
+	iwdg_init(IWDG_PRE_256, 4000);
+ iwdg_feed();
 }
 
-void BLYNK::Run()
+long execution_time = 0;
+long start_time = 0;
+void BLYNKRun()
 {
-	Blynk.run();
+  //Serial1.println(millis()-execution_time);
+  start_time = millis();
+	if (modem.isNetworkConnected())
+	{
+		//DBG("Network connected");
+		Blynk.run();
+	}
+	else
+	{
+  //Serial1.println("Disconnect");
+		if( (start_time - reconnect_timer >= reconnect_timer_duration*1000) && is_reset_required == false )
+		{
+			Serial1.println("Trying to connect");
+			//modem.init();
+			modem.restart();
+			modem.gprsConnect(apn, user, pass);
+			//Blynk.begin(auth, modem, apn, user, pass, "blynk-cloud.com", 8080);
+      if (modem.isNetworkConnected())
+      {
+			  //Blynk.run();
+        Blynk.begin(auth, modem, apn, user, pass, "blynk-cloud.com", 8080);
+      }
+			reconnect_timer = millis();
+			reset_counter++;
+		}
+		/*
+		else
+		{
+			reconnect_timer++;
+		}
+		*/
+    
+		if( reset_counter > 5)
+		{
+			is_reset_required = true;
+			reset_counter = 0;
+			Serial1.println("Sw Reset");
+		}
+  
+	}
+
+	if( is_reset_required == false)
+	{
+		iwdg_feed();
+	}
+
+	//Blynk.run();
 	timer.run();
 }
 
-void BLYNK::SendEmail(char *subject, char *body)
+void SendEmail(char *subject, char *body)
 {
 	Blynk.email("khaledmagdy50@gmail.com", subject, body);
 }
 
-void BLYNK::SendNotification(char *msg)
+void SendNotification(char *msg)
 {
 	Blynk.notify(msg);
 }
 
-void BLYNK::UpdateLocation(float latitude, float longitude, float speed, float satellites, bool reset)
+void UpdateLocation(float latitude, float longitude, float speed, float satellites, bool reset)
 {
 	if ( reset == false)
-	{
+	{ 
 		Blynk.virtualWrite(V1, String(latitude, 6));
 		Blynk.virtualWrite(V2, String(longitude, 6));
 		Blynk.virtualWrite(V3, speed);
@@ -109,19 +214,19 @@ void BLYNK::UpdateLocation(float latitude, float longitude, float speed, float s
 		Blynk.virtualWrite(V4, 0);		// Number of Satellites
 	}
 }
-void BLYNK::UpdateMapLocation(int pointIndex, float latitude, float longitude)
+void UpdateMapLocation(int pointIndex, float latitude, float longitude)
 {
 	myMap.location(pointIndex, latitude, longitude, "GPS_Location");
 }
 
-void BLYNK::UpdateDataValidLed(bool state)
+void UpdateDataValidLed(bool state)
 {
 	if( state == true)
 		data_valid_led.on();
 	else
 		data_valid_led.off();
 }
-void BLYNK::UpdatePrevDataValidLed(bool state)
+void UpdatePrevDataValidLed(bool state)
 {
 	if( state == true)
 		prev_data_valid_led.on();
@@ -129,7 +234,7 @@ void BLYNK::UpdatePrevDataValidLed(bool state)
 		prev_data_valid_led.off();
 }
 
-void BLYNK::UpdatePIDData(int engine_col_temp, double engine_speed, int vehicle_speed, int throttle_pos, double runtime_since_engine_start)
+void UpdatePIDData(int engine_col_temp, double engine_speed, int vehicle_speed, int throttle_pos, double runtime_since_engine_start)
 {
 	Blynk.virtualWrite(V11, engine_col_temp);
 	Blynk.virtualWrite(V12, engine_speed);
@@ -138,21 +243,21 @@ void BLYNK::UpdatePIDData(int engine_col_temp, double engine_speed, int vehicle_
 	Blynk.virtualWrite(V15, runtime_since_engine_start);
 }
 
-void BLYNK::TerminalWriteLine(char *msg)
+void TerminalWriteLine(char *msg)
 {
 	if( terminal_debug_enable== true )
 	{
 		terminal.println(msg);
 	}
 }
-void BLYNK::TerminalWrite(char *msg)
+void TerminalWrite(char *msg)
 {
 	if( terminal_debug_enable== true )
 	{
 		terminal.print(msg);
 	}
 }
-void BLYNK::TerminalFlush()
+void TerminalFlush()
 {
 	if( terminal_debug_enable== true )
 	{
@@ -161,27 +266,27 @@ void BLYNK::TerminalFlush()
 }
 
 
-int BLYNK::GetDay()
+int GetDay()
 {
 	return day();
 }
-int BLYNK::GetMonth()
+int GetMonth()
 {
 	return month();
 }
-int BLYNK::GetYear()
+int GetYear()
 {
 	return year();
 }
-int BLYNK::GetHour()
+int GetHour()
 {
 	return hour();
 }
-int BLYNK::GetMinute()
+int GetMinute()
 {
 	return minute();
 }
-int BLYNK::GetSecond()
+int GetSecond()
 {
 	return second();
 }
@@ -190,6 +295,19 @@ int BLYNK::GetSecond()
 BLYNK_CONNECTED() {
   // Synchronize time on connection
   rtc.begin();
+
+  Blynk.virtualWrite(V19, 0);   // Enable Terminal debuging
+  Blynk.virtualWrite(V20, 0);   // operation_mode
+  Blynk.virtualWrite(V26, 60);  // stollen_mode_update_duration
+  Blynk.virtualWrite(V21, 60);  // park_location_check_timer_1_Duration
+  Blynk.virtualWrite(V22, 30);   // park_location_check_timer_2_Duration
+  Blynk.virtualWrite(V23, 20);  // geofencing_check_timer_1_Duration
+  Blynk.virtualWrite(V27, 5);   // geofencing_check_timer_2_Duration
+  Blynk.virtualWrite(V24, 100);   // geofencing_check_radius
+  Blynk.virtualWrite(V25, 1);   // geofencing_check_enable
+  Blynk.virtualWrite(V28, 0);   // print_geofencing_data_enable
+  Blynk.virtualWrite(V29, 0);   // geofencing_send_email
+  
 }
 
 
@@ -224,7 +342,7 @@ BLYNK_WRITE(V5)
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
   if( pinValue == 1 )//&& update_gps_data == false)
   {
-	  GPS_BLYNK.SetUpdateGpsData(true);
+	  GPS_SetUpdateGpsData(true);
 #ifdef ENABLE_DEBUG
       Serial1.println("Update Requested");
 #endif
@@ -244,13 +362,13 @@ BLYNK_WRITE(V8)
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
   if( pinValue == 1)
   {
-	 GPS_BLYNK.ResetAutoUpdateTimer();
-     GPS_BLYNK.SetIsAutoUpdate(true);
+	 GPS_ResetAutoUpdateTimer();
+     GPS_SetIsAutoUpdate(true);
   }
   else
   {
-	  GPS_BLYNK.SetIsAutoUpdate(false);
-	  GPS_BLYNK.ResetAutoUpdateTimer();
+	  GPS_SetIsAutoUpdate(false);
+	  GPS_ResetAutoUpdateTimer();
   }
 }
 // Set GPS auto update timer duration
@@ -259,7 +377,7 @@ BLYNK_WRITE(V9)
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
   if( pinValue > 0 && pinValue <= 60)
   {
-	  GPS_BLYNK.SetAutoUpdateTimerDuration(pinValue);
+	  GPS_SetAutoUpdateTimerDuration(pinValue);
   }
 }
 
@@ -269,50 +387,50 @@ BLYNK_WRITE(V20)
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
   if( pinValue == 1)
   {
-	  GPS_BLYNK.ResetStollenModeUpdateTimer();
-      GPS_BLYNK.SetOperationMode(MODE_STOLLEN);
+	  GPS_ResetStollenModeUpdateTimer();
+      GPS_SetOperationMode(MODE_STOLLEN);
   }
   else
   {
-	  GPS_BLYNK.SetOperationMode(MODE_NORMAL);
+	  GPS_SetOperationMode(MODE_NORMAL);
   }
 }
 // Set stollen_mode_update_duration
 BLYNK_WRITE(V26)
 {
 	int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
-	GPS_BLYNK.SetStollenModeUpdateDuration(pinValue);
+	GPS_SetStollenModeUpdateDuration(pinValue);
 }
 
 // Set GPS park_location_check_timer_1_Duration
 BLYNK_WRITE(V21)
 {
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
-  GPS_BLYNK.SetParkTimer1Duration(pinValue);
+  GPS_SetParkTimer1Duration(pinValue);
 }
 // Set GPS park_location_check_timer_2_Duration
 BLYNK_WRITE(V22)
 {
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
-  GPS_BLYNK.SetParkTimer2Duration(pinValue);
+  GPS_SetParkTimer2Duration(pinValue);
 }
 // Set GPS geofencing_check_timer_1_Duration
 BLYNK_WRITE(V23)
 {
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
-  GPS_BLYNK.SetGeofencingTimer1Duration(pinValue);
+  GPS_SetGeofencingTimer1Duration(pinValue);
 }
 // Set GPS geofencing_check_timer_2_Duration
 BLYNK_WRITE(V27)
 {
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
-  GPS_BLYNK.SetGeofencingTimer2Duration(pinValue);
+  GPS_SetGeofencingTimer2Duration(pinValue);
 }
 // Set GPS StandStillThreshold Duration
 BLYNK_WRITE(V24)
 {
   float pinValue = param.asFloat(); // assigning incoming value from pin V1 to a variable
-  GPS_BLYNK.SetGeofencingRadius(pinValue);
+  GPS_SetGeofencingRadius(pinValue);
 }
 // Set geofencing_check_enable
 BLYNK_WRITE(V25)
@@ -320,11 +438,37 @@ BLYNK_WRITE(V25)
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
   if( pinValue == 1)
   {
-	  GPS_BLYNK.SetGeofencingCheckEnable(true);
+	  GPS_SetGeofencingCheckEnable(true);
   }
   else
   {
-	  GPS_BLYNK.SetGeofencingCheckEnable(false);
+	  GPS_SetGeofencingCheckEnable(false);
+  }
+}
+// Set print_geofencing_data_enable
+BLYNK_WRITE(V28)
+{
+  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+  if( pinValue == 1)
+  {
+    GPS_SetPrintGeofencingDataEnable(true);
+  }
+  else
+  {
+    GPS_SetPrintGeofencingDataEnable(false);
+  }
+}
+// Set geofencing_send_email
+BLYNK_WRITE(V29)
+{
+  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+  if( pinValue == 1)
+  {
+    GPS_SetGeofencingSendEmail(true);
+  }
+  else
+  {
+    GPS_SetGeofencingSendEmail(false);
   }
 }
 
@@ -334,7 +478,7 @@ BLYNK_WRITE(V25)
 BLYNK_WRITE(V16)
 {
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
-  if( pinValue == 1 && OBDII_BLYNK.GetUpdateObdData() == false)
+  if( pinValue == 1 && GetUpdateObdData() == false)
   {
 #ifdef ENABLE_DEBUG
       Serial1.println("Update OBD Requested");
@@ -345,11 +489,11 @@ BLYNK_WRITE(V16)
       terminal.flush();
     }
 
-    bool Status = OBDII_BLYNK.SendPIDRequest(WAIT_RESPONCE_ENGINE_COL_TEMP_05);
+    bool Status = SendPIDRequest(WAIT_RESPONCE_ENGINE_COL_TEMP_05);
     if( Status == true)
     {
-    	OBDII_BLYNK.SetDataReady(false);
-    	OBDII_BLYNK.SetUpdateObdData(true);
+    	SetDataReady(false);
+    	SetUpdateObdData(true);
     }
     else
     {
@@ -368,15 +512,15 @@ BLYNK_WRITE(V16)
 BLYNK_WRITE(V17)
 {
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
-  if( pinValue == 1 && OBDII_BLYNK.GetUpdateObdData() == false )//&& is_obd_auto_update == false)
+  if( pinValue == 1 && GetUpdateObdData() == false )//&& is_obd_auto_update == false)
   {
-	  OBDII_BLYNK.ResetObdAutoUpdateTimerCounter();
-    OBDII_BLYNK.SetIsObdAutoUpdate(true);
+	  ResetObdAutoUpdateTimerCounter();
+    SetIsObdAutoUpdate(true);
 
   }
   else
   {
-    OBDII_BLYNK.SetIsObdAutoUpdate(false);
-    OBDII_BLYNK.ResetObdAutoUpdateTimerCounter();
+    SetIsObdAutoUpdate(false);
+    ResetObdAutoUpdateTimerCounter();
   }
 }

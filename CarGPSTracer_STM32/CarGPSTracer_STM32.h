@@ -1,2 +1,2 @@
 
-void gpsUpdateTimer();
+void gpsUpdateTimer(void);
