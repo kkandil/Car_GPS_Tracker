@@ -41,9 +41,12 @@ class OBDIIHandler;
 class OBDIIHandler {
 public:
   OBDIIHandler(int CS_pin, int INT_pin);
+  OBDIIHandler();
   ~OBDIIHandler();
 
   bool Begin();
+
+  void UpdatePIDData();
 
   bool ReadOBDData(unsigned long* rxID, byte* dlc, byte* rxBuf);
 
@@ -53,9 +56,14 @@ public:
 
   void HandleOBD();
 
-  bool GetDataReady();
+  //bool GetDataReady();
 
   bool SetDataReady(bool data_ready_state);
 
   strOBD_Data GetPIDData();
+
+  void SetUpdateObdData(bool state);
+  bool GetUpdateObdData();
+  void SetIsObdAutoUpdate(bool state);
+  void ResetObdAutoUpdateTimerCounter();
 };

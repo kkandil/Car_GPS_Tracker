@@ -1,7 +1,11 @@
 
 #include "OBDIIHandler.h"
+#include "BLYNK.h"
 #include <mcp_can.h>
 #include <SPI.h>
+
+
+BLYNK BLYNK_OBD;
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -46,6 +50,11 @@ unsigned long obd_responce_timer = 0;
 
 bool data_ready = false;
 
+bool update_obd_data = false;
+int obd_auto_update_timer_counter = 0;
+int obd_auto_update_timer_duration = 2;
+bool is_obd_auto_update = false;
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //  Globale Functions
@@ -54,6 +63,8 @@ OBDIIHandler::OBDIIHandler(int CS_pin, int INT_pin) {
     CAN0 = new MCP_CAN(CS_pin);
     CAN0_INT = INT_pin;
   }
+
+OBDIIHandler::OBDIIHandler(void){}
 
 OBDIIHandler::~OBDIIHandler(void) { }
 
@@ -111,7 +122,76 @@ bool OBDIIHandler::Begin()
 } 
 
 
+void OBDIIHandler::UpdatePIDData()
+{
+	char msgString[128] ;
 
+	if( update_obd_data == true && data_ready == true )
+	{
+		BLYNK_OBD.UpdatePIDData(OBD_Data.engine_col_temp, OBD_Data.engine_speed/10.0, OBD_Data.vehicle_speed, OBD_Data.throttle_pos, ((double)OBD_Data.runtime_since_engine_start)/10.0);
+
+		{
+			sprintf(msgString, "engine_col_temp[05]: %d",OBD_Data.engine_col_temp_val);
+			BLYNK_OBD.TerminalWriteLine(msgString);
+			for(byte i = 0; i<8; i++){
+				sprintf(msgString, " 0x%.2X", OBD_Data.data_engine_col_temp[i]);
+				BLYNK_OBD.TerminalWrite(msgString);
+			}
+			BLYNK_OBD.TerminalWriteLine("");
+
+			sprintf(msgString, "engine_speed[0C]: %d",OBD_Data.engine_speed_val);
+			BLYNK_OBD.TerminalWriteLine(msgString);
+			for(byte i = 0; i<8; i++){
+				sprintf(msgString, " 0x%.2X", OBD_Data.data_engine_speed[i]);
+				BLYNK_OBD.TerminalWrite(msgString);
+			}
+			BLYNK_OBD.TerminalWriteLine("");
+
+			sprintf(msgString, "Vehucle_Speed[0D]: %d",OBD_Data.vehicle_speed_val);
+			BLYNK_OBD.TerminalWriteLine(msgString);
+			for(byte i = 0; i<8; i++){
+				sprintf(msgString, " 0x%.2X", OBD_Data.data_vehicle_speed[i]);
+				BLYNK_OBD.TerminalWrite(msgString);
+			}
+			BLYNK_OBD.TerminalWriteLine("");
+
+			sprintf(msgString, "throttle_pos[11]: %d",OBD_Data.throttle_pos_val);
+			BLYNK_OBD.TerminalWriteLine(msgString);
+			for(byte i = 0; i<8; i++){
+				sprintf(msgString, " 0x%.2X", OBD_Data.data_throttle_pos[i]);
+				BLYNK_OBD.TerminalWrite(msgString);
+			}
+			BLYNK_OBD.TerminalWriteLine("");
+
+			sprintf(msgString, "throttle_pos[1F]: %d",OBD_Data.runtime_since_engine_start_val);
+			BLYNK_OBD.TerminalWriteLine(msgString);
+			for(byte i = 0; i<8; i++){
+				sprintf(msgString, " 0x%.2X", OBD_Data.data_runtime_since_engine_start[i]);
+				BLYNK_OBD.TerminalWrite(msgString);
+			}
+			BLYNK_OBD.TerminalWriteLine("");
+			BLYNK_OBD.TerminalWriteLine("-----------------------");
+			BLYNK_OBD.TerminalFlush();
+		}
+		update_obd_data = false;
+		data_ready = false;
+	}
+	else if( (is_obd_auto_update == true && obd_auto_update_timer_counter >= (obd_auto_update_timer_duration*10)))
+	{
+		if( data_ready == true)
+		{
+			BLYNK_OBD.UpdatePIDData(OBD_Data.engine_col_temp, OBD_Data.engine_speed/10.0, OBD_Data.vehicle_speed, OBD_Data.throttle_pos, ((double)OBD_Data.runtime_since_engine_start)/10.0);
+
+			data_ready = false;
+			SendPIDRequest(WAIT_RESPONCE_ENGINE_COL_TEMP_05);
+			obd_auto_update_timer_counter = 0;
+		}
+	}
+	else if(is_obd_auto_update == true)
+	{
+		obd_auto_update_timer_counter++;
+	}
+}
 
 
 bool OBDIIHandler::ReadOBDData(unsigned long* rxID, byte* dlc, byte* rxBuf)
@@ -583,10 +663,7 @@ void OBDIIHandler::HandleOBD()
   }
 }
 
-bool OBDIIHandler::GetDataReady()
-{
-   return data_ready;
-}
+
 
 bool OBDIIHandler::SetDataReady(bool data_ready_state)
 {
@@ -598,3 +675,21 @@ strOBD_Data OBDIIHandler::GetPIDData()
 {
   return OBD_Data; 
 }
+
+void OBDIIHandler::SetUpdateObdData(bool state)
+{
+	update_obd_data = state;
+}
+bool OBDIIHandler::GetUpdateObdData()
+{
+	return update_obd_data;
+}
+void OBDIIHandler::SetIsObdAutoUpdate(bool state)
+{
+	is_obd_auto_update = state;
+}
+void OBDIIHandler::ResetObdAutoUpdateTimerCounter()
+{
+	obd_auto_update_timer_counter = 0;
+}
+
