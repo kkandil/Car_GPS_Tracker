@@ -11,9 +11,9 @@ struct strGPS_DATA{
   bool data_valid;
   bool prev_data_valid; 
 
-  float home_lat;
-  float home_lon;
-  bool isAtHome;
+  float park_location_lat;
+  float park_location_lon;
+  bool is_vehicle_parked;
   float travelDistance;
 };
 
@@ -31,8 +31,9 @@ public:
   void smartDelay(unsigned long ms);
 
   strGPS_DATA GetGPSData();
-  void SetTimer1Duration(int duration);
-  void SetTimer2Duration(int duration);
-  void SetTimer3Duration(int duration);
-  void SetStandStillThreshold(float threshold);
+  void SetParkTimer1Duration(int duration);
+  void SetParkTimer2Duration(int duration);
+  void SetGeofencingTimer1Duration(int duration);
+  void SetGeofencingTimer2Duration(int duration);
+  void SetGeofencingRadius(float radius);
 };

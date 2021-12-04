@@ -20,7 +20,6 @@
  
 #include <TinyGsmClient.h>  
 #include <BlynkSimpleTinyGSM.h>  
-//#include <EEPROM.h>
 
 
 // You should get Auth Token in the Blynk App.
@@ -73,277 +72,253 @@ WidgetRTC rtc;
 
 
 bool terminal_debug_enable = false;
-bool vehicleMoveDetection = true;
- 
-void setup() {
-  
-  //Set Serial monitor baud rate
-  Serial1.begin(115200);
+bool geofencing_check_enable = true;
+bool print_geofencing_data_enable = false;
 
-  // Init GPS module
-  GPS.Begin();   
-  
-  //Set GSM module baud rate 
-  Serial2.begin(9600); 
-
-  // Init OBDII driver
-  OBDII.Begin( );
- 
-  delay(3000); 
- 
-   
-  // Restart takes quite some time
-  // To skip it, call init() instead of restart() 
-  modem.restart();
-  //modem.init();
-   
-  Blynk.begin(auth, modem, apn, user, pass, "blynk-cloud.com", 8080);
-#ifdef ENABLE_DEBUG
-  Serial1.println("Blynk done...");
-#endif
-
-  setSyncInterval(10 * 60);
- 
-  //EEPROM.begin(512);
-  //EEPROM.get(0, operation_mode);
-  
-  if( operation_mode > MODE_STOLLEN || operation_mode < MODE_NORMAL )
-  {
-    operation_mode = MODE_STOLLEN;
-  }
-
-  timer.setInterval(100L, gpsUpdateTimer);
-
-  
-}
 unsigned long timer_start = 0;
 int sleepcounter = 0;
 unsigned long current_time = 0;
+
+void gpsUpdateTimer();
+
+void setup() {
+	//Set Serial monitor baud rate
+	Serial1.begin(115200);
+
+	// Init GPS module
+	GPS.Begin();
+
+	//Set GSM module baud rate
+	Serial2.begin(9600);
+
+	// Init OBDII driver
+	OBDII.Begin( );
+
+	delay(3000);
+
+
+	// Restart takes quite some time
+	// To skip it, call init() instead of restart()
+	modem.restart();
+	//modem.init();
+
+	Blynk.begin(auth, modem, apn, user, pass, "blynk-cloud.com", 8080);
+#ifdef ENABLE_DEBUG
+	Serial1.println("Blynk done...");
+#endif
+
+	setSyncInterval(10 * 60);
+
+	//EEPROM.begin(512);
+	//EEPROM.get(0, operation_mode);
+
+	if( operation_mode > MODE_STOLLEN || operation_mode < MODE_NORMAL )
+	{
+		operation_mode = MODE_STOLLEN;
+	}
+
+	timer.setInterval(100L, gpsUpdateTimer);
+}
+
  
 void loop() {
-
-/*
-  current_time =  millis();
-  if( (is_obd_auto_update == true && (current_time - timer_start)> 5000) && sleepcounter < 20)
-  {  
-      timer_start = current_time;
-      sleepcounter++;
-      Serial1.print("Sleep Counter: ");
-      Serial1.println(sleepcounter);
-  }
-  else if( is_obd_auto_update == true && sleepcounter >= 20)
-  {
-      Serial1.println("Blynk restart");
-      modem.restart();
-      delay(3000);
-      Blynk.begin(auth, modem, apn, user, pass, "blynk-cloud.com", 8080);
-      is_obd_auto_update = false; 
-      sleepcounter = 0;
-  }
-  else
-  {
-  */
-  //HAL_NVIC_SystemReset();
-    Blynk.run();
-    timer.run();
-  //}
-  GPS.smartDelay(0);
-  OBDII.HandleOBD();
-  
+	Blynk.run();
+	timer.run();
+	GPS.smartDelay(0);
+	OBDII.HandleOBD();
 } //main loop ends
 
 void gpsUpdateTimer()
 {
-  char msgString[128]; 
-  
-  int pointIndex = 1;  
-  GPS.UpdateGPSData(); 
 
-  if( operation_mode == MODE_STOLLEN && stollen_mode_update_timer >= stollen_mode_update_duration*10 )
-  {
-    gpsData = GPS.GetGPSData();
-    if( gpsData.data_valid == true || gpsData.prev_data_valid == true )
-    { 
-      sprintf(msgString, "Loc: %.06f, %.06f ,Speed: %.06f, Time: %d/%d/%d-%d:%d:%d", gpsData.latitude, gpsData.longitude, gpsData.speed, day(), month(), year(), hour(), minute(), second());
-      Blynk.email("khaledmagdy50@gmail.com", "Accent GPS Update", msgString);
-      Serial.println("Email Sent");
-    }
-    stollen_mode_update_timer = 0;
-  }
-  else if( operation_mode == MODE_STOLLEN )
-  {
-    stollen_mode_update_timer++;
-  }
-
-  
-  if( update_gps_data == true || (is_auto_update == true && auto_update_timer_counter >= (auto_update_duration*10)))
-  {
-    gpsData = GPS.GetGPSData();
-    auto_update_timer_counter = 0;
-    if( gpsData.data_valid == true || gpsData.prev_data_valid == true )
-    {
-        Blynk.virtualWrite(V1, String(gpsData.latitude, 6));
-        Blynk.virtualWrite(V2, String(gpsData.longitude, 6));
-        Blynk.virtualWrite(V3, gpsData.speed);
-        Blynk.virtualWrite(V4, gpsData.satellites);
-        myMap.location(pointIndex, gpsData.latitude, gpsData.longitude, "GPS_Location"); 
-  
-        if( gpsData.data_valid == true )
-            data_valid_led.on();
-        else
-            data_valid_led.off();
-        if( gpsData.prev_data_valid == true )
-            prev_data_valid_led.on();
-        else
-            prev_data_valid_led.off(); 
-        if( terminal_debug_enable== true )
-        {
-          terminal.println("Data Valid");
-        }
-    }
-    else
-    {
-        Blynk.virtualWrite(V1, 0);
-        Blynk.virtualWrite(V2, 0);
-        Blynk.virtualWrite(V3, 0);
-        Blynk.virtualWrite(V4, 0);   
-        data_valid_led.off();
-        prev_data_valid_led.off(); 
-        if( terminal_debug_enable== true )
-        {
-        terminal.println("No Data");
-        }
-    }
-    update_gps_data = false;
-  }
-  else if( is_auto_update == true )
-  {
-    auto_update_timer_counter++;
-  }
-  if( terminal_debug_enable== true )
-  {
-  terminal.flush();
-  }
+	char msgString[128];
+	int pointIndex = 1;
 
 
- 
-  if( update_obd_data == true && OBDII.GetDataReady() == true )
-  { 
-    obdData = OBDII.GetPIDData();
-    //if( obdData.data_val == true )
-    {
-        Blynk.virtualWrite(V11, obdData.engine_col_temp);
-        Blynk.virtualWrite(V12, obdData.engine_speed/10.0);
-        Blynk.virtualWrite(V13, obdData.vehicle_speed);
-        Blynk.virtualWrite(V14, obdData.throttle_pos);
-        Blynk.virtualWrite(V15, obdData.runtime_since_engine_start/10.0); 
+	//=================================================================================================================
+	//=================================================================================================================
+	// GPS function handling section
 
-        if( terminal_debug_enable== true )
-        {
-            sprintf(msgString, "engine_col_temp[05]: %d",obdData.engine_col_temp_val);
-            terminal.println(msgString);
-            for(byte i = 0; i<8; i++){
-              sprintf(msgString, " 0x%.2X", obdData.data_engine_col_temp[i]);
-              terminal.print(msgString);
-            }
-            terminal.println();
-            
-            sprintf(msgString, "engine_speed[0C]: %d",obdData.engine_speed_val);
-            terminal.println(msgString);
-            for(byte i = 0; i<8; i++){
-              sprintf(msgString, " 0x%.2X", obdData.data_engine_speed[i]);
-              terminal.print(msgString);
-            }
-            terminal.println();
-    
-            sprintf(msgString, "Vehucle_Speed[0D]: %d",obdData.vehicle_speed_val);
-            terminal.println(msgString);
-            for(byte i = 0; i<8; i++){
-              sprintf(msgString, " 0x%.2X", obdData.data_vehicle_speed[i]);
-              terminal.print(msgString);
-            }
-            terminal.println();
-    
-            sprintf(msgString, "throttle_pos[11]: %d",obdData.throttle_pos_val);
-            terminal.println(msgString);
-            for(byte i = 0; i<8; i++){
-              sprintf(msgString, " 0x%.2X", obdData.data_throttle_pos[i]);
-              terminal.print(msgString);
-            }
-            terminal.println();
-    
-            sprintf(msgString, "throttle_pos[1F]: %d",obdData.runtime_since_engine_start_val);
-            terminal.println(msgString);
-            for(byte i = 0; i<8; i++){
-              sprintf(msgString, " 0x%.2X", obdData.data_runtime_since_engine_start[i]);
-              terminal.print(msgString);
-            }
-            terminal.println();
-            terminal.println("-----------------------");
-            terminal.flush();
-        }
-        
-    }
-    /*
-    else
-    {
-      terminal.println("error sending data");
-      terminal.flush(); 
-    }
-    */
-    update_obd_data = false;
-  } 
-  else if( (is_obd_auto_update == true && obd_auto_update_timer_counter >= (auto_update_duration*10)))
-  { 
-    if( OBDII.GetDataReady() == true)
-    {
-      obdData = OBDII.GetPIDData();
-      Blynk.virtualWrite(V11, obdData.engine_col_temp);
-      Blynk.virtualWrite(V12, obdData.engine_speed/10.0);
-      Blynk.virtualWrite(V13, obdData.vehicle_speed);
-      Blynk.virtualWrite(V14, obdData.throttle_pos);
-      Blynk.virtualWrite(V15, obdData.runtime_since_engine_start/10.0); 
-      
-      OBDII.SetDataReady(false);
-      OBDII.SendPIDRequest(WAIT_RESPONCE_ENGINE_COL_TEMP_05);
-      obd_auto_update_timer_counter = 0;
-    }
-  }
-  else if(is_obd_auto_update == true)
-  {
-    obd_auto_update_timer_counter++;
-  } 
+	// Stollen mode handling
+	GPS.UpdateGPSData();
+	if( operation_mode == MODE_STOLLEN && stollen_mode_update_timer >= stollen_mode_update_duration*10 )
+	{
+		gpsData = GPS.GetGPSData();
+		if( gpsData.data_valid == true || gpsData.prev_data_valid == true )
+		{
+			// Send email with the vehicle location every stollen_mode_update_duration seconds
+			sprintf(msgString, "Loc: %.06f, %.06f ,Speed: %.06f, Time: %d/%d/%d-%d:%d:%d", gpsData.latitude, gpsData.longitude, gpsData.speed, day(), month(), year(), hour(), minute(), second());
+			Blynk.email("khaledmagdy50@gmail.com", "Accent GPS Update", msgString);
+			Serial.println("Email Sent");
+		}
+		stollen_mode_update_timer = 0;
+	}
+	else if( operation_mode == MODE_STOLLEN )
+	{
+		stollen_mode_update_timer++;
+	}
 
-  if( vehicleMoveDetection == true )
-  {
-    gpsData = GPS.GetGPSData();
-    if(prevAtHomeState == false && gpsData.isAtHome == true )
-    { 
-      sprintf(msgString, "Accent parked at: %d/%d/%d-%d:%d:%d", day(), month(), year(), hour(), minute(), second());
-      terminal.println(msgString);
-      terminal.flush();
-      prevAtHomeState = gpsData.isAtHome ;
-    }
-    else if( prevAtHomeState == true && gpsData.isAtHome == false )
-    { 
-      sprintf(msgString, "Accent Moved at: %d/%d/%d-%d:%d:%d", day(), month(), year(), hour(), minute(), second());
-      terminal.println(msgString);
-      terminal.flush();
-  
-       String currentTime = String(day()) + "/" + month() + "/" + year() + "-" + String(hour()) + ":" + minute() + ":" + second(); 
-       //Stringmessage = "Accent Moved at: " + currentTime  ;
-       Blynk.notify("Accent Moved at: " + currentTime ) ;
-      prevAtHomeState = gpsData.isAtHome ;
-    }
+	//----------------------------------------------------
+	// GPS location data update
+	if( update_gps_data == true || (is_auto_update == true && auto_update_timer_counter >= (auto_update_duration*10)))
+	{
+		gpsData = GPS.GetGPSData();
+		auto_update_timer_counter = 0;
+		if( gpsData.data_valid == true || gpsData.prev_data_valid == true )
+		{
+			Blynk.virtualWrite(V1, String(gpsData.latitude, 6));
+			Blynk.virtualWrite(V2, String(gpsData.longitude, 6));
+			Blynk.virtualWrite(V3, gpsData.speed);
+			Blynk.virtualWrite(V4, gpsData.satellites);
+			myMap.location(pointIndex, gpsData.latitude, gpsData.longitude, "GPS_Location");
 
-    if( terminal_debug_enable == true )
-    {
-      sprintf(msgString, "travel Dist = %.02f", gpsData.travelDistance);
-      terminal.println(msgString);
-      terminal.flush();
-    } 
-  }
-  
+			if( gpsData.data_valid == true )
+				data_valid_led.on();
+			else
+				data_valid_led.off();
+			if( gpsData.prev_data_valid == true )
+				prev_data_valid_led.on();
+			else
+				prev_data_valid_led.off();
+			if( terminal_debug_enable== true )
+			{
+				terminal.println("Data Valid");
+				terminal.flush();
+			}
+		}
+		else
+		{
+			// reset GPS data
+			Blynk.virtualWrite(V1, 0);		// Latitude
+			Blynk.virtualWrite(V2, 0);		// Longitude
+			Blynk.virtualWrite(V3, 0);		// Speed
+			Blynk.virtualWrite(V4, 0);		// Number of Satellites
+			data_valid_led.off();			// Current data valid indicator
+			prev_data_valid_led.off();		// Previous received data valid
+			if( terminal_debug_enable== true )
+			{
+				terminal.println("No Data");
+				terminal.flush();
+			}
+		}
+		update_gps_data = false;
+	}
+	else if( is_auto_update == true )
+	{
+		auto_update_timer_counter++;
+	}
+
+	//----------------------------------------------------
+	// Geofencing check section
+	if( geofencing_check_enable == true )
+	{
+		gpsData = GPS.GetGPSData();
+		if(prevAtHomeState == false && gpsData.is_vehicle_parked == true )
+		{
+			sprintf(msgString, "Accent parked at: %d/%d/%d-%d:%d:%d", day(), month(), year(), hour(), minute(), second());
+			terminal.println(msgString);
+			terminal.flush();
+			prevAtHomeState = gpsData.is_vehicle_parked ;
+		}
+		else if( prevAtHomeState == true && gpsData.is_vehicle_parked == false )
+		{
+			sprintf(msgString, "Accent Moved at: %d/%d/%d-%d:%d:%d", day(), month(), year(), hour(), minute(), second());
+			terminal.println(msgString);
+			terminal.flush();
+
+			String currentTime = String(day()) + "/" + month() + "/" + year() + "-" + String(hour()) + ":" + minute() + ":" + second();
+			//Stringmessage = "Accent Moved at: " + currentTime  ;
+			Blynk.notify("Accent Moved at: " + currentTime ) ;
+			prevAtHomeState = gpsData.is_vehicle_parked ;
+		}
+
+		if( terminal_debug_enable == true )
+		{
+			sprintf(msgString, "travel Dist = %.02f", gpsData.travelDistance);
+			terminal.println(msgString);
+			terminal.flush();
+		}
+	}
+
+
+	//=================================================================================================================
+	//=================================================================================================================
+	// OBD function handling section
+	if( update_obd_data == true && OBDII.GetDataReady() == true )
+	{
+		obdData = OBDII.GetPIDData();
+		Blynk.virtualWrite(V11, obdData.engine_col_temp);
+		Blynk.virtualWrite(V12, obdData.engine_speed/10.0);
+		Blynk.virtualWrite(V13, obdData.vehicle_speed);
+		Blynk.virtualWrite(V14, obdData.throttle_pos);
+		Blynk.virtualWrite(V15, obdData.runtime_since_engine_start/10.0);
+
+		if( terminal_debug_enable== true )
+		{
+			sprintf(msgString, "engine_col_temp[05]: %d",obdData.engine_col_temp_val);
+			terminal.println(msgString);
+			for(byte i = 0; i<8; i++){
+				sprintf(msgString, " 0x%.2X", obdData.data_engine_col_temp[i]);
+				terminal.print(msgString);
+			}
+			terminal.println();
+
+			sprintf(msgString, "engine_speed[0C]: %d",obdData.engine_speed_val);
+			terminal.println(msgString);
+			for(byte i = 0; i<8; i++){
+				sprintf(msgString, " 0x%.2X", obdData.data_engine_speed[i]);
+				terminal.print(msgString);
+			}
+			terminal.println();
+
+			sprintf(msgString, "Vehucle_Speed[0D]: %d",obdData.vehicle_speed_val);
+			terminal.println(msgString);
+			for(byte i = 0; i<8; i++){
+				sprintf(msgString, " 0x%.2X", obdData.data_vehicle_speed[i]);
+				terminal.print(msgString);
+			}
+			terminal.println();
+
+			sprintf(msgString, "throttle_pos[11]: %d",obdData.throttle_pos_val);
+			terminal.println(msgString);
+			for(byte i = 0; i<8; i++){
+				sprintf(msgString, " 0x%.2X", obdData.data_throttle_pos[i]);
+				terminal.print(msgString);
+			}
+			terminal.println();
+
+			sprintf(msgString, "throttle_pos[1F]: %d",obdData.runtime_since_engine_start_val);
+			terminal.println(msgString);
+			for(byte i = 0; i<8; i++){
+				sprintf(msgString, " 0x%.2X", obdData.data_runtime_since_engine_start[i]);
+				terminal.print(msgString);
+			}
+			terminal.println();
+			terminal.println("-----------------------");
+			terminal.flush();
+		}
+		update_obd_data = false;
+	}
+	else if( (is_obd_auto_update == true && obd_auto_update_timer_counter >= (auto_update_duration*10)))
+	{
+		if( OBDII.GetDataReady() == true)
+		{
+			obdData = OBDII.GetPIDData();
+			Blynk.virtualWrite(V11, obdData.engine_col_temp);
+			Blynk.virtualWrite(V12, obdData.engine_speed/10.0);
+			Blynk.virtualWrite(V13, obdData.vehicle_speed);
+			Blynk.virtualWrite(V14, obdData.throttle_pos);
+			Blynk.virtualWrite(V15, obdData.runtime_since_engine_start/10.0);
+
+			OBDII.SetDataReady(false);
+			OBDII.SendPIDRequest(WAIT_RESPONCE_ENGINE_COL_TEMP_05);
+			obd_auto_update_timer_counter = 0;
+		}
+	}
+	else if(is_obd_auto_update == true)
+	{
+		obd_auto_update_timer_counter++;
+	}
 }
 
 BLYNK_CONNECTED() {
@@ -498,41 +473,60 @@ BLYNK_WRITE(V20)
   }
 }
 
-// Set GPS Timer1 Duration
+// Set GPS park_location_check_timer_1_Duration
 BLYNK_WRITE(V21)
 {
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
-  GPS.SetTimer1Duration(pinValue);
+  GPS.SetParkTimer1Duration(pinValue);
 } 
-// Set GPS Timer2 Duration
+// Set GPS park_location_check_timer_2_Duration
 BLYNK_WRITE(V22)
 {
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
-  GPS.SetTimer2Duration(pinValue);
+  GPS.SetParkTimer2Duration(pinValue);
 } 
-// Set GPS Timer3 Duration
+// Set GPS geofencing_check_timer_1_Duration
 BLYNK_WRITE(V23)
 {
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
-  GPS.SetTimer3Duration(pinValue);
+  GPS.SetGeofencingTimer1Duration(pinValue);
+}
+// Set GPS geofencing_check_timer_2_Duration
+BLYNK_WRITE(V27)
+{
+  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+  GPS.SetGeofencingTimer2Duration(pinValue);
 } 
 // Set GPS StandStillThreshold Duration
 BLYNK_WRITE(V24)
 { 
   float pinValue = param.asFloat(); // assigning incoming value from pin V1 to a variable
-  GPS.SetStandStillThreshold(pinValue);
+  GPS.SetGeofencingRadius(pinValue);
 }
-// Set vehicle movement detection enable/disable
+// Set geofencing_check_enable
 BLYNK_WRITE(V25)
 {
   int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
   if( pinValue == 1)
   {
-    vehicleMoveDetection = true;
+	  geofencing_check_enable = true;
   }
   else
   {
-    vehicleMoveDetection = false;
+	  geofencing_check_enable = false;
+  }
+}
+// Set print_geofencing_data_enable
+BLYNK_WRITE(V28)
+{
+  int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
+  if( pinValue == 1)
+  {
+    print_geofencing_data_enable = true;
+  }
+  else
+  {
+    print_geofencing_data_enable = false;
   }
 }
 
