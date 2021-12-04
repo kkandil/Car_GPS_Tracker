@@ -1,0 +1,20 @@
+– Check the signal strength
+AT+CSQ 
+
+- Check that you’re registered on the network
+AT+CREG? 
+
+– Check that you’re connected to the network
+AT+COPS? 
+
+– Return the list of operators present in the network.
+AT+COPS=? 
+
+– will return the lipo battery state.
+AT+CBC 
+
+- Check baudrate. 0 = 9600
+AT+IPR?
+
+- Set baudrate
+AT+IPR=9600
