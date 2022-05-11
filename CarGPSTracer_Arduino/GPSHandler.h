@@ -12,10 +12,6 @@ void GPS_HandleLocationUpdate();
 void GPS_HandleStollenMode();
 void GPS_HandleGeofencingMode();
  
-void GPS_SetParkTimer1Duration(int duration);
-void GPS_SetParkTimer2Duration(int duration);
-void GPS_SetGeofencingTimer1Duration(int duration);
-void GPS_SetGeofencingTimer2Duration(int duration);
 void GPS_SetGeofencingRadius(float radius);
 
 void GPS_SetUpdateGpsData(bool state);
@@ -28,7 +24,6 @@ void GPS_SetStollenModeUpdateDuration(int duration);
 void GPS_SetGeofencingCheckEnable(bool state);
 void GPS_SetPrintGeofencingDataEnable(bool state);
 void GPS_SetGeofencingSendEmail(bool state);
-void GPS_SetVehicleStatus(bool state);
 /*
 class GPSHandler {
 public:

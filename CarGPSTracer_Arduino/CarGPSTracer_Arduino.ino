@@ -1,8 +1,7 @@
 
 #include "BLYNK.h"
-#include "CarGPSTracer_STM32.h"
-#include "GPSHandler.h"
-#include "OBDIIHandler.h"
+#include "CarGPSTracer_Arduino.h"
+#include "GPSHandler.h" 
 
 
 
@@ -11,29 +10,21 @@ void setup() {
  
 
 	//Set Serial monitor baud rate
-	Serial1.begin(115200);
-
+	Serial.begin(115200);
 
 	// Init GPS module
 	GPS_Begin();
 
-	//Set GSM module baud rate
-	Serial2.begin(9600);
-
-	// Init OBDII driver
-	OBDIIBegin(PA4, PB0);
-
-	delay(3000);
+	//delay(3000);
 
 	BLYNKBegin(); 
  
 }
 
  
-void loop() { 
+void loop() {  
 	BLYNKRun();
-	GPS_SmartDelay(0);
-	HandleOBD();
+	GPS_SmartDelay(0); 
 } //main loop ends
 
 void gpsUpdateTimer(void)
@@ -47,7 +38,6 @@ void gpsUpdateTimer(void)
 	GPS_HandleStollenMode();
 
 	GPS_HandleGeofencingMode();
-
-	UpdatePIDData();
+ 
 
 }

@@ -127,61 +127,67 @@ bool OBDIIBegin(int CS_pin, int INT_pin)
 
 void UpdatePIDData()
 {
-	char msgString[128] ;
-
+	String msgString;
+  char msg[125];
 	if( update_obd_data == true && data_ready == true )
 	{
 		UpdatePIDData(OBD_Data.engine_col_temp, OBD_Data.engine_speed/10.0, OBD_Data.vehicle_speed, OBD_Data.throttle_pos, ((double)OBD_Data.runtime_since_engine_start)/10.0);
 
 		{
-			sprintf(msgString, "engine_col_temp[05]: %d",OBD_Data.engine_col_temp_val);
-			TerminalWriteLine(msgString);
+			//sprintf(msgString, "engine_col_temp[05]: %d",OBD_Data.engine_col_temp_val);
+      msgString = "engine_col_temp[05]: " + String(OBD_Data.engine_col_temp_val);
+			TerminalWriteLine(msgString, false);
 			for(byte i = 0; i<8; i++){
-				sprintf(msgString, " 0x%.2X", OBD_Data.data_engine_col_temp[i]);
-				TerminalWrite(msgString);
+				sprintf(msg, " 0x%.2X", OBD_Data.data_engine_col_temp[i]); 
+				TerminalWrite(String(msg));
 			}
-			TerminalWriteLine("");
+			TerminalWriteLine("", false);
 
-			sprintf(msgString, "engine_speed[0C]: %d",OBD_Data.engine_speed_val);
-			TerminalWriteLine(msgString);
+			//sprintf(msgString, "engine_speed[0C]: %d",OBD_Data.engine_speed_val);
+      msgString =  "engine_speed[0C]: " + String(OBD_Data.engine_speed_val);
+			TerminalWriteLine(msgString, false);
 			for(byte i = 0; i<8; i++){
-				sprintf(msgString, " 0x%.2X", OBD_Data.data_engine_speed[i]);
-				TerminalWrite(msgString);
+				sprintf(msg, " 0x%.2X", OBD_Data.data_engine_speed[i]);
+				TerminalWrite(String(msg));
 			}
-			TerminalWriteLine("");
+			TerminalWriteLine("", false);
 
-			sprintf(msgString, "Vehucle_Speed[0D]: %d",OBD_Data.vehicle_speed_val);
-			TerminalWriteLine(msgString);
+			//sprintf(msgString, "Vehucle_Speed[0D]: %d",OBD_Data.vehicle_speed_val);
+     msgString = "Vehucle_Speed[0D]: " + String(OBD_Data.vehicle_speed_val) ;
+			TerminalWriteLine(msgString, false);
 			for(byte i = 0; i<8; i++){
-				sprintf(msgString, " 0x%.2X", OBD_Data.data_vehicle_speed[i]);
-				TerminalWrite(msgString);
+				sprintf(msg, " 0x%.2X", OBD_Data.data_vehicle_speed[i]);
+				TerminalWrite(String(msg));
 			}
-			TerminalWriteLine("");
+			TerminalWriteLine("", false);
 
-			sprintf(msgString, "throttle_pos[11]: %d",OBD_Data.throttle_pos_val);
-			TerminalWriteLine(msgString);
+			//sprintf(msgString, "throttle_pos[11]: %d",OBD_Data.throttle_pos_val);
+      msgString = "throttle_pos[11]: " + String(OBD_Data.throttle_pos_val);
+			TerminalWriteLine(msgString, false);
 			for(byte i = 0; i<8; i++){
-				sprintf(msgString, " 0x%.2X", OBD_Data.data_throttle_pos[i]);
-				TerminalWrite(msgString);
+				sprintf(msg, " 0x%.2X", OBD_Data.data_throttle_pos[i]);
+				TerminalWrite(String(msg));
 			}
-			TerminalWriteLine("");
+			TerminalWriteLine("", false);
 
-			sprintf(msgString, "throttle_pos[1F]: %d",OBD_Data.runtime_since_engine_start_val);
-			TerminalWriteLine(msgString);
+			//sprintf(msgString, "throttle_pos[1F]: %d",OBD_Data.runtime_since_engine_start_val);
+			msgString = "throttle_pos[1F]: " + String(OBD_Data.runtime_since_engine_start_val);
+			TerminalWriteLine(msgString, false);
 			for(byte i = 0; i<8; i++){
-				sprintf(msgString, " 0x%.2X", OBD_Data.data_runtime_since_engine_start[i]);
-				TerminalWrite(msgString);
+				sprintf(msg, " 0x%.2X", OBD_Data.data_runtime_since_engine_start[i]);
+				TerminalWrite(String(msg));
 			}
-			TerminalWriteLine("");
+			TerminalWriteLine("", false);
 
-      sprintf(msgString, "odometer[A6]: %d",OBD_Data.odometer_val);
-      TerminalWriteLine(msgString);
+      //sprintf(msgString, "odometer[A6]: %d",OBD_Data.odometer_val);
+      msgString = "odometer[A6]: " + String(OBD_Data.odometer_val);
+      TerminalWriteLine(msgString, false);
       for(byte i = 0; i<8; i++){
-        sprintf(msgString, " 0x%.2X", OBD_Data.data_odometer[i]);
-        TerminalWrite(msgString);
+        sprintf(msg, " 0x%.2X", OBD_Data.data_odometer[i]);
+        TerminalWrite(String(msg));
       }
-      TerminalWriteLine("");
-			TerminalWriteLine("-----------------------");
+      TerminalWriteLine("", false);
+			TerminalWriteLine("-----------------------", false);
 			TerminalFlush();
 		}
 		update_obd_data = false;
