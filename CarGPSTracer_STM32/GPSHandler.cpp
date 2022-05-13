@@ -181,7 +181,7 @@ void GPS_HandleStollenMode()
       UpdateLocation((float)gps_data.latitude, (float)gps_data.longitude, (float)gps_data.speed, (float)gps_data.satellites, false);
       UpdateMapLocation(1, (float)gps_data.latitude, (float)gps_data.longitude);
       
-     msgString = "Loc: " + String(gps_data.park_location_lat,6) + ", " + String(gps_data.park_location_lon,6) + " ,Speed: " + String( gps_data.speed,2)
+     msgString = "Loc: " + String(gps_data.latitude,6) + ", " + String(gps_data.longitude,6) + " ,Speed: " + String( gps_data.speed,2)
                  +  ", Time: " +  String(GetDay())+"/"+String(GetMonth())+"/"+String(GetYear())+"-"+String(GetHour())+":"+String(GetMinute())+":"+String(GetSecond());
 			SendEmail("Accent GPS Update", msgString);
 #ifdef GPS_DEBUG_ENABLE
@@ -258,8 +258,8 @@ void GPS_HandleGeofencingMode()
 
             BLYNK_UpdateVehicleState(gps_data.is_vehicle_parked);
 
-            UpdateLocation((float)gps_data.latitude, (float)gps_data.longitude, (float)gps_data.speed, (float)gps_data.satellites, false);
-            UpdateMapLocation(1, (float)gps_data.latitude, (float)gps_data.longitude);
+            UpdateLocation((float)gps_data.park_location_lat, (float)gps_data.park_location_lon, (float)gps_data.speed, (float)gps_data.satellites, false);
+            UpdateMapLocation(1, (float)gps_data.park_location_lat, (float)gps_data.park_location_lon);
     
     	#ifdef GPS_DEBUG_ENABLE
     				Serial.println("Vehicle Parked");
@@ -314,7 +314,7 @@ void GPS_HandleGeofencingMode()
     
     				//sprintf(msg, "Accent Moved at: %.06f, %.06f , Time: %d/%d/%d-%d:%d:%d", gps_data.latitude, gps_data.longitude, GetDay(), GetMonth(), GetYear(), GetHour(), GetMinute(), GetSecond());
     				
-    				msg = "Accent Moved at: " + String(gps_data.park_location_lat,6) + ", " + String(gps_data.park_location_lon,6) 
+    				msg = "Accent Moved at: " + String(gps_data.latitude,6) + ", " + String(gps_data.longitude,6) 
                   +  " , Time: " +  String(GetDay())+"/"+String(GetMonth())+"/"+String(GetYear())+"-"+String(GetHour())+":"+String(GetMinute())+":"+String(GetSecond());
     				TerminalWriteLine(msg, true);
     				TerminalFlush();
